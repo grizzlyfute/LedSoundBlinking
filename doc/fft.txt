@@ -1,0 +1,264 @@
+The discrete Fourier transform transforms a sequence of N complex numbers { x n } := x 0 , x 1 , … , x N − 1 {\displaystyle \left\{\mathbf {x_{n}} \right\}:=x_{0},x_{1},\ldots ,x_{N-1}} {\displaystyle \left\{\mathbf {x_{n}} \right\}:=x_{0},x_{1},\ldots ,x_{N-1}} into another sequence of complex numbers, { X k } := X 0 , X 1 , … , X N − 1 , {\displaystyle \left\{\mathbf {X_{k}} \right\}:=X_{0},X_{1},\ldots ,X_{N-1},} {\displaystyle \left\{\mathbf {X_{k}} \right\}:=X_{0},X_{1},\ldots ,X_{N-1},} which is defined by
+
+    X k = ∑ n = 0 N − 1 x n ⋅ e − 2 π i N k n = ∑ n = 0 N − 1 x n ⋅ [ cos ⁡ ( 2 π k n / N ) − i ⋅ sin ⁡ ( 2 π k n / N ) ] , {\displaystyle {\begin{aligned}X_{k}&=\sum _{n=0}^{N-1}x_{n}\cdot e^{-{\frac {2\pi i}{N}}kn}\\&=\sum _{n=0}^{N-1}x_{n}\cdot [\cos(2\pi kn/N)-i\cdot \sin(2\pi kn/N)],\end{aligned}}} {\displaystyle {\begin{aligned}X_{k}&=\sum _{n=0}^{N-1}x_{n}\cdot e^{-{\frac {2\pi i}{N}}kn}\\&=\sum _{n=0}^{N-1}x_{n}\cdot [\cos(2\pi kn/N)-i\cdot \sin(2\pi kn/N)],\end{aligned}}}
+    	
+
+     
+    	
+
+     
+    	
+
+     
+
+     
+    	
+
+    (Eq.1)
+
+where the last expression follows from the first one by Euler's formula.
+
+The transform is sometimes denoted by the symbol F {\displaystyle {\mathcal {F}}} {\mathcal {F}}, as in X = F { x } {\displaystyle \mathbf {X} ={\mathcal {F}}\left\{\mathbf {x} \right\}} \mathbf {X} ={\mathcal {F}}\left\{\mathbf {x} \right\} or F ( x ) {\displaystyle {\mathcal {F}}\left(\mathbf {x} \right)} {\mathcal {F}}\left(\mathbf {x} \right) or F x {\displaystyle {\mathcal {F}}\mathbf {x} } {\mathcal {F}}\mathbf {x} .[note 1]
+
+
+/* fft.cpp
+ * 
+ * This is a KISS implementation of
+ * the Cooley-Tukey recursive FFT algorithm.
+ * This works, and is visibly clear about what is happening where.
+ *
+ * To compile this with the GNU/GCC compiler:
+ * g++ -o fft fft.cpp -lm
+ *
+ * To run the compiled version from a *nix command line:
+ * ./fft
+ *
+ */
+#include <complex>
+#include <cstdio>
+
+
+#define M_PI 3.14159265358979323846 // Pi constant with double precision
+
+using namespace std;
+
+// separate even/odd elements to lower/upper halves of array respectively.
+// Due to Butterfly combinations, this turns out to be the simplest way 
+// to get the job done without clobbering the wrong elements.
+void separate (complex<double>* a, int n) {
+    complex<double>* b = new complex<double>[n/2];  // get temp heap storage
+    for(int i=0; i<n/2; i++)    // copy all odd elements to heap storage
+        b[i] = a[i*2+1];
+    for(int i=0; i<n/2; i++)    // copy all even elements to lower-half of a[]
+        a[i] = a[i*2];
+    for(int i=0; i<n/2; i++)    // copy all odd (from heap) to upper-half of a[]
+        a[i+n/2] = b[i];
+    delete[] b;                 // delete heap storage
+}
+
+// N must be a power-of-2, or bad things will happen.
+// Currently no check for this condition.
+//
+// N input samples in X[] are FFT'd and results left in X[].
+// Because of Nyquist theorem, N samples means 
+// only first N/2 FFT results in X[] are the answer.
+// (upper half of X[] is a reflection with no new information).
+void fft2 (complex<double>* X, int N) {
+    if(N < 2) {
+        // bottom of recursion.
+        // Do nothing here, because already X[0] = x[0]
+    } else {
+        separate(X,N);      // all evens to lower half, all odds to upper half
+        fft2(X,     N/2);   // recurse even items
+        fft2(X+N/2, N/2);   // recurse odd  items
+        // combine results of two half recursions
+        for(int k=0; k<N/2; k++) {
+            complex<double> e = X[k    ];   // even
+            complex<double> o = X[k+N/2];   // odd
+                         // w is the "twiddle-factor"
+            complex<double> w = exp( complex<double>(0,-2.*M_PI*k/N) );
+            X[k    ] = e + w * o;
+            X[k+N/2] = e - w * o;
+        }
+    }
+}
+
+// simple test program
+int main () {
+    const int nSamples = 64;
+    double nSeconds = 1.0;                      // total time for sampling
+    double sampleRate = nSamples / nSeconds;    // n Hz = n / second 
+    double freqResolution = sampleRate / nSamples; // freq step in FFT result
+    complex<double> x[nSamples];                // storage for sample data
+    complex<double> X[nSamples];                // storage for FFT answer
+    const int nFreqs = 5;
+    double freq[nFreqs] = { 2, 5, 11, 17, 29 }; // known freqs for testing
+    
+    // generate samples for testing
+    for(int i=0; i<nSamples; i++) {
+        x[i] = complex<double>(0.,0.);
+        // sum several known sinusoids into x[]
+        for(int j=0; j<nFreqs; j++)
+            x[i] += sin( 2*M_PI*freq[j]*i/nSamples );
+        X[i] = x[i];        // copy into X[] for FFT work & result
+    }
+    // compute fft for this data
+    fft2(X,nSamples);
+    
+    printf("  n\tx[]\tX[]\tf\n");       // header line
+    // loop to print values
+    for(int i=0; i<nSamples; i++) {
+        printf("% 3d\t%+.3f\t%+.3f\t%g\n",
+            i, x[i].real(), abs(X[i]), i*freqResolution );
+    }
+}
+
+
+//// ==============================================================
+#include <climits>
+#include <cmath>
+#include <complex>
+#include <cstdlib>
+#include <iostream>
+#include <vector>
+
+using namespace std;
+
+uint32_t reverseBits(uint32_t i) {
+  register uint32_t mask = 0x55555555; // 0101...
+  i = ((i & mask) << 1) | ((i >> 1) & mask);
+  mask = 0x33333333; // 0011...
+  i = ((i & mask) << 2) | ((i >> 2) & mask);
+  mask = 0x0f0f0f0f; // 00001111...
+  i = ((i & mask) << 4) | ((i >> 4) & mask);
+  mask = 0x00ff00ff; // 0000000011111111...
+  i = ((i & mask) << 8) | ((i >> 8) & mask);
+  // 00000000000000001111111111111111 no need for mask
+  i = (i << 16) | (i >> 16);
+  return i;
+}
+
+int lg(uint32_t i) {
+  int count = -1;
+  while (i) {
+    i = i >> 1;
+    count++;
+  }
+  return count;
+}
+
+// Russian peasant algorithm
+int pown(const int p) {
+  uint32_t w = p;
+  w |= w >> 1;
+  w |= w >> 2;
+  w |= w >> 4;
+  w |= w >> 8;
+  w |= w >> 16;
+  uint32_t mask = w & ~(w >> 1);
+
+  int a = 1;
+  while (mask) {
+    a = a * a;
+    if (mask & p)
+      a *= 2;
+    mask >>= 1;
+  }
+
+  return a;
+}
+
+void iterativeFFT(const vector<complex<double> >& primal,
+                  vector<complex<double> >& dual,
+                  const int P) {
+  const int N = primal.size();
+  const bool inverse = P < 0;
+  const int absP = inverse ? -P : P;
+
+  // bottom level of iteration tree
+  for (int i = 0; i < N; i++)
+    dual[i] = primal[reverseBits(i) >> (32 - absP)];
+
+  // there are absP levels above the bottom
+  for (int p = 1; p <= absP; p++) {
+    // complex root of unity
+    const int unityStep = 0x1 << p;
+    const double theta = (inverse ? -1 : 1) * 2 * M_PI / unityStep; // INVERSE
+    const complex<double> unityRoot(cos(theta), sin(theta));
+
+    // each higher level doubles the step size
+    for (int offset = 0; offset < N; offset += unityStep) {
+      complex<double> omega = 1;
+
+      // combine within a step segment (note only iterate over half step)
+      for (int k = 0; k < unityStep/2; k++) {
+        const complex<double> u = dual[offset + k];
+
+        const complex<double> t = omega * dual[offset + k + unityStep/2];
+        omega *= unityRoot;
+
+        dual[offset + k] = u + t;
+        dual[offset + k + unityStep/2] = u - t;
+      }
+    }
+  }
+
+  if (inverse) // INVERSE
+    for (int j = 0; j < N; j++)
+      dual[j] /= N;
+}
+
+int main(int argc, char *argv[]) {
+  // input number of coefficients
+  cout << "input number of coefficients" << endl;
+  int N;
+  cin >> N;
+
+  // easy case - assume N is even power of 2
+  const int P = lg(N);
+
+  // check
+  if (N != pown(P)) {
+    cout << "error, " << N << " is not an even power of 2" << endl;
+    exit(1);
+  }
+
+  // random coefficients for a polynomial (primal)
+  vector<complex<double> > primal(N, 0);
+  for (int i = 0; i < N; i++)
+    primal[i] = 1 + drand48() * 100;
+
+  // transformed dual
+  vector<complex<double> > dual(N, 0);
+
+  iterativeFFT(primal, dual, P); // primal -> dual
+
+  // print original primal coefficients
+  cout << "primal:" << endl;
+  for (int i = 0; i < N; i++)
+    cout << i << "\t" << primal[i] << endl;
+
+  cout << endl;
+
+  // print dual coefficients
+  cout << "dual:" << endl;
+  for (int i = 0; i < N; i++)
+    cout << i << "\t" << dual[i] << endl;
+
+  // need another array for inverse
+  vector<complex<double> > dualPrime(N, 0);
+
+  // use -P as flag for inverse
+  iterativeFFT(dual, dualPrime, -P); // dual -> primal
+
+  cout << endl;
+
+  // print dual coefficients
+  cout << "dualPrime:" << endl;
+  for (int i = 0; i < N; i++)
+    cout << i << "\t" << dualPrime[i] << endl;
+
+  exit(0);
+}
+
+// eof

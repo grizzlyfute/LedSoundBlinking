@@ -1,0 +1,42 @@
+MIC:
+Microphonne. Se comporte comme un condensateur.
+Amplitude max +- 20 mV, AC. Amplitude de croisiere : 5-10 mV
+
+R1 - 10 kO
+Alimentation du micro. La valeur importe peu
+
+C1, C2 (1 uF)
+Condensateurs de liaison, suppression de la composante alternative.
+Z = 1 / C*j*w, w = 2*pi*f. pour f = 2 kHz, 1 / Cjw ~= 8 Ohm
+
+R2 - 100 kO
+Polarisation de Q1. Lorsque mic = -AmplitudeMax, Ibase = 0 mA
+Courrant MIC ~= 10µA. => R = (Vcc - Vbe)/Imic = (2.4 - 0.7)/Imic = 170k
+Si trop faible, Q1 aurra un offset distordra le signal
+
+R3 - kO
+Resistance de limitation pour Q1
+
+
+Q1, Q2 - amplifaction
+Q1 fonctionnent en mode lineaire, mais le courrant d'entree est insufisant
+pour avoir une pleine amplitude. Q2 réamplifie le signal
+
+R4 - 10kO, R5 - 1kO
+Polarisation de Q2.
+Ce montage en pont diviseur evite une eventuelle saturation de Q2
+En cas de saturation, vR4-Vb diminuera, diminant le courant d'entré.
+R4 ne doit pas être trops eleve pour fournir le courrant necessaire a Q2 et
+avoir une qualite de signal
+
+PB3, PB4
+Entree microcontroleur. Attention, Pb4 ~= 0.650 mv, Pb3 ~= 0.750 mv si pas de
+signal. PB3 est utilise en cas de signal d'entree tres fort. utilisation de
+Pb4 en temps normale
+
+PB2, PB1, PB0
+Sortie attiny 85. Le circuit de led inclut les resistances necessaire a la
+protection des diodes
+
+Vcc - 2.5v
+2 piles AAA rechargeable.
